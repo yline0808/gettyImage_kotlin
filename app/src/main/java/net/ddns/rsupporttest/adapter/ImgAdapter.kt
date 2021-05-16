@@ -12,7 +12,7 @@ import net.ddns.rsupporttest.databinding.ItemImgBinding
 import net.ddns.rsupporttest.databinding.ItemLoadingBinding
 import net.ddns.rsupporttest.item.RowImgSrc
 
-class ImgAdapter(val rowSrcList: ArrayList<RowImgSrc?>) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+class ImgAdapter(private val rowSrcList: ArrayList<RowImgSrc?>) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
     companion object {
         private const val VIEW_TYPE_ITEM = 0;
         private const val VIEW_TYPE_LOADING = 1;

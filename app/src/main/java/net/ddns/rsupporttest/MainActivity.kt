@@ -1,11 +1,12 @@
 package net.ddns.rsupporttest
 
-import android.os.AsyncTask
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import kotlinx.coroutines.*
 import net.ddns.rsupporttest.adapter.ImgAdapter
 import net.ddns.rsupporttest.databinding.ActivityMainBinding
 import net.ddns.rsupporttest.item.RowImgSrc
@@ -15,79 +16,121 @@ import org.jsoup.nodes.Document
 import org.jsoup.select.Elements
 
 class MainActivity : AppCompatActivity() {
+    private val binding by lazy { ActivityMainBinding.inflate(layoutInflater) }
     private val rowImgList:ArrayList<RowImgSrc?> = ArrayList<RowImgSrc?>()
     private val imgAdapter:ImgAdapter = ImgAdapter(rowImgList)
     private var isLoading:Boolean = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        binding.recyclerView.apply {
-            binding.recyclerView.layoutManager = LinearLayoutManager(context)
-            binding.recyclerView.adapter = imgAdapter
-            binding.recyclerView.addOnScrollListener(scrollListener)
+        binding.recyclerView.run {
+            layoutManager = LinearLayoutManager(context)
+            adapter = imgAdapter
+            addOnScrollListener(scrollListener)
         }
-        GetImgSrc().execute(rowImgList.size)
+        coroutine()
     }
 
-    val scrollListener = object:RecyclerView.OnScrollListener(){
-        override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
-            super.onScrolled(recyclerView, dx, dy)
-
-            val layoutManager: LinearLayoutManager = recyclerView.layoutManager as LinearLayoutManager;
-            if(!isLoading && layoutManager != null && layoutManager.findLastCompletelyVisibleItemPosition() == rowImgList.size - 1){
-                recyclerView.scrollToPosition(rowImgList.size - 1)
-                GetImgSrc().execute(rowImgList.size)
-                isLoading = true
-            }
-        }
-    }
-
-    inner class GetImgSrc:AsyncTask<Int, Void, Int>(){
-        private val WEB_URL: String = "https://www.gettyimages.com/photos/collaboration?page=%d&phrase=collaboration&sort=best"
-        private var isEnd:Boolean = false
-
-        override fun onPreExecute() {
+    private fun coroutine() {
+        CoroutineScope(Dispatchers.Main).launch {
+            val loadingIdx:Int = rowImgList.size
             rowImgList.add(null)
-            imgAdapter.notifyItemInserted(rowImgList.size - 1)
-        }
+            imgAdapter.notifyItemInserted(loadingIdx)
 
-        override fun doInBackground(vararg itemCnt: Int?): Int? {
-            try {
-                val doc:Document = Jsoup.connect(
-                    String.format(WEB_URL, if (itemCnt[0]!! <= 1) 1 else itemCnt[0]!! / 20 + 1)
-                ).get()
+            Log.d("===please!!!1", "${rowImgList.size}")
+            val isEnd:Boolean = withContext(Dispatchers.IO){ getImgSrc(rowImgList) }
+//            val isEnd:Boolean = CoroutineScope(Dispatchers.IO).async { getImgSrc(rowImgList) }
+            Log.d("===please!!!3", "${rowImgList.size}")
 
-                val imgElementList:Elements = doc
-                    .select("div[class=search-content__gallery-assets]")
-                    .select("img")
-                for (i in 0 until imgElementList.size step 3){
-                    rowImgList.add(
-                        RowImgSrc(
-                            imgElementList.get(i).attr("src"),
-                            imgElementList.get(i+1).attr("src"),
-                            imgElementList.get(i+2).attr("src")
-                        )
-                    )
-                }
-            }catch (httpStatusException : HttpStatusException){
-                httpStatusException.printStackTrace()
-                isEnd = true
-            }catch (exception :Exception){
-                exception.printStackTrace()
-            }
-            return itemCnt[0]
-        }
-
-        override fun onPostExecute(result: Int) {
-            isLoading = false
-            rowImgList.removeAt(result)
+            rowImgList.removeAt(loadingIdx)
             imgAdapter.notifyDataSetChanged()
+            isLoading = false
+
             if(isEnd){
                 Toast.makeText(applicationContext, "last page!", Toast.LENGTH_SHORT).show()
             }
         }
     }
+
+    fun getImgSrc(rowImgList:ArrayList<RowImgSrc?>):Boolean {
+        Log.d("===please!!!2", "${rowImgList.size}")
+
+        val WEB_URL = "https://www.gettyimages.com/photos/collaboration?page=%d&phrase=collaboration&sort=mostpopular"
+        var isEnd = false
+
+        try {
+            val doc:Document = Jsoup.connect(
+                String.format(WEB_URL, if (rowImgList.size <= 1) 1 else rowImgList.size / 20 + 1)
+            ).get()
+
+            val imgElementList:Elements = doc
+                .select("div[class=search-content__gallery-assets]")
+                .select("img")
+            for (i in 0 until imgElementList.size step 3){
+                rowImgList.add(
+                    RowImgSrc(
+                        imgElementList.get(i).attr("src"),
+                        imgElementList.get(i+1).attr("src"),
+                        imgElementList.get(i+2).attr("src")
+                    )
+                )
+            }
+        }catch (httpStatusException : HttpStatusException){
+            httpStatusException.printStackTrace()
+            isEnd = true
+            Log.d("===please???EEE1", "${rowImgList.size}")
+        }catch (exception :Exception){
+            exception.printStackTrace()
+            Log.d("===please???EEE2", "${rowImgList.size}")
+        }
+        return isEnd
+    }
+
+    private val scrollListener = object:RecyclerView.OnScrollListener(){
+        override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+            super.onScrolled(recyclerView, dx, dy)
+
+            val layoutManager: LinearLayoutManager = recyclerView.layoutManager as LinearLayoutManager
+            if(!isLoading && layoutManager != null && layoutManager.findLastCompletelyVisibleItemPosition() == rowImgList.size - 1){
+                isLoading = true
+                coroutine()
+            }
+        }
+    }
 }
+
+//fun getImgSrc(rowImgList:ArrayList<RowImgSrc?>):Boolean {
+//    Log.d("===please!!!2", "${rowImgList.size}")
+//
+//    val WEB_URL = "https://www.gettyimages.com/photos/collaboration?page=%d&phrase=collaboration&sort=mostpopular"
+//    var isEnd = false
+//
+//    try {
+//        val doc:Document = Jsoup.connect(
+//            String.format(WEB_URL, if (rowImgList.size <= 1) 1 else rowImgList.size / 20 + 1)
+//        ).get()
+//
+//        val imgElementList:Elements = doc
+//            .select("div[class=search-content__gallery-assets]")
+//            .select("img")
+//        for (i in 0 until imgElementList.size step 3){
+//            rowImgList.add(
+//                RowImgSrc(
+//                    imgElementList.get(i).attr("src"),
+//                    imgElementList.get(i+1).attr("src"),
+//                    imgElementList.get(i+2).attr("src")
+//                )
+//            )
+//        }
+//    }catch (httpStatusException : HttpStatusException){
+//        httpStatusException.printStackTrace()
+//        isEnd = true
+//        Log.d("===please???EEE1", "${rowImgList.size}")
+//    }catch (exception :Exception){
+//        exception.printStackTrace()
+//        Log.d("===please???EEE2", "${rowImgList.size}")
+//    }
+//    return isEnd
+//}
