@@ -19,6 +19,7 @@ class ImgAdapter(private val rowSrcList: ArrayList<RowImgSrc?>) : RecyclerView.A
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+        // viewType으로 item holder와 Loading holder 반환
         return when (viewType){
             VIEW_TYPE_ITEM -> ItemViewHolder(ItemImgBinding.inflate(LayoutInflater.from(parent.context), parent, false))
             else -> LoadingViewHolder(ItemLoadingBinding.inflate(LayoutInflater.from(parent.context), parent, false))
@@ -32,6 +33,7 @@ class ImgAdapter(private val rowSrcList: ArrayList<RowImgSrc?>) : RecyclerView.A
     }
 
     override fun getItemViewType(position: Int): Int {
+        // 해당 위치의 rowSrcList가 null 이면 로딩 타입, 아니면 아이템 타입 반환
         return when(rowSrcList[position]){
             null -> VIEW_TYPE_LOADING
             else -> VIEW_TYPE_ITEM
@@ -44,6 +46,7 @@ class ImgAdapter(private val rowSrcList: ArrayList<RowImgSrc?>) : RecyclerView.A
 
     inner class ItemViewHolder(private val binding: ItemImgBinding) : RecyclerView.ViewHolder(binding.root){
         fun bind(imgSrc: RowImgSrc){
+            // 메모리의 효율젹인 관리를 위해 Glide를 사용하여 이미제 세팅
             setGlide(binding.imgLeft.context, imgSrc.leftImgSrc, binding.imgLeft)
             setGlide(binding.imgMiddle.context, imgSrc.middleImgSrc, binding.imgMiddle)
             setGlide(binding.imgRight.context, imgSrc.rightImgSrc, binding.imgRight)
@@ -53,6 +56,7 @@ class ImgAdapter(private val rowSrcList: ArrayList<RowImgSrc?>) : RecyclerView.A
     inner class LoadingViewHolder(private val binding: ItemLoadingBinding) : RecyclerView.ViewHolder(binding.root){
     }
 
+    // Glide를 사용하여 해당 url 이미지를 세팅 (url 없을경우 안드로이드 기본 배경 이미지)
     private fun setGlide(context: Context, url:String, imageView: ImageView){
         Glide.with(context)
             .load(url)
