@@ -1,7 +1,6 @@
 package net.ddns.rsupporttest
 
 import android.os.Bundle
-import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -30,20 +29,30 @@ class MainActivity : AppCompatActivity() {
             adapter = imgAdapter
             addOnScrollListener(scrollListener)
         }
-        coroutine()
+        getRowItemList()
     }
 
-    private fun coroutine() {
+//    스크롤 리스너
+    private val scrollListener = object:RecyclerView.OnScrollListener(){
+        override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+            super.onScrolled(recyclerView, dx, dy)
+
+            val layoutManager: LinearLayoutManager = recyclerView.layoutManager as LinearLayoutManager
+            if(!isLoading && layoutManager != null && layoutManager.findLastCompletelyVisibleItemPosition() == rowImgList.size - 1){
+                isLoading = true
+                getRowItemList()
+            }
+        }
+    }
+
+//    로딩세팅 & 이미지 src 가져오는 함수
+    private fun getRowItemList() {
         CoroutineScope(Dispatchers.Main).launch {
             val loadingIdx:Int = rowImgList.size
             rowImgList.add(null)
             imgAdapter.notifyItemInserted(loadingIdx)
 
-            Log.d("===please!!!1", "${rowImgList.size}")
-            val isEnd:Boolean = withContext(Dispatchers.IO){ getImgSrc(rowImgList) }
-//            val isEnd:Boolean = CoroutineScope(Dispatchers.IO).async { getImgSrc(rowImgList) }
-            Log.d("===please!!!3", "${rowImgList.size}")
-
+            val isEnd:Boolean = fetchImgSrc(rowImgList)
             rowImgList.removeAt(loadingIdx)
             imgAdapter.notifyDataSetChanged()
             isLoading = false
@@ -53,84 +62,35 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
-
-    fun getImgSrc(rowImgList:ArrayList<RowImgSrc?>):Boolean {
-        Log.d("===please!!!2", "${rowImgList.size}")
-
-        val WEB_URL = "https://www.gettyimages.com/photos/collaboration?page=%d&phrase=collaboration&sort=mostpopular"
-        var isEnd = false
-
-        try {
-            val doc:Document = Jsoup.connect(
-                String.format(WEB_URL, if (rowImgList.size <= 1) 1 else rowImgList.size / 20 + 1)
-            ).get()
-
-            val imgElementList:Elements = doc
-                .select("div[class=search-content__gallery-assets]")
-                .select("img")
-            for (i in 0 until imgElementList.size step 3){
-                rowImgList.add(
-                    RowImgSrc(
-                        imgElementList.get(i).attr("src"),
-                        imgElementList.get(i+1).attr("src"),
-                        imgElementList.get(i+2).attr("src")
-                    )
-                )
-            }
-        }catch (httpStatusException : HttpStatusException){
-            httpStatusException.printStackTrace()
-            isEnd = true
-            Log.d("===please???EEE1", "${rowImgList.size}")
-        }catch (exception :Exception){
-            exception.printStackTrace()
-            Log.d("===please???EEE2", "${rowImgList.size}")
-        }
-        return isEnd
-    }
-
-    private val scrollListener = object:RecyclerView.OnScrollListener(){
-        override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
-            super.onScrolled(recyclerView, dx, dy)
-
-            val layoutManager: LinearLayoutManager = recyclerView.layoutManager as LinearLayoutManager
-            if(!isLoading && layoutManager != null && layoutManager.findLastCompletelyVisibleItemPosition() == rowImgList.size - 1){
-                isLoading = true
-                coroutine()
-            }
-        }
-    }
 }
 
-//fun getImgSrc(rowImgList:ArrayList<RowImgSrc?>):Boolean {
-//    Log.d("===please!!!2", "${rowImgList.size}")
-//
-//    val WEB_URL = "https://www.gettyimages.com/photos/collaboration?page=%d&phrase=collaboration&sort=mostpopular"
-//    var isEnd = false
-//
-//    try {
-//        val doc:Document = Jsoup.connect(
-//            String.format(WEB_URL, if (rowImgList.size <= 1) 1 else rowImgList.size / 20 + 1)
-//        ).get()
-//
-//        val imgElementList:Elements = doc
-//            .select("div[class=search-content__gallery-assets]")
-//            .select("img")
-//        for (i in 0 until imgElementList.size step 3){
-//            rowImgList.add(
-//                RowImgSrc(
-//                    imgElementList.get(i).attr("src"),
-//                    imgElementList.get(i+1).attr("src"),
-//                    imgElementList.get(i+2).attr("src")
-//                )
-//            )
-//        }
-//    }catch (httpStatusException : HttpStatusException){
-//        httpStatusException.printStackTrace()
-//        isEnd = true
-//        Log.d("===please???EEE1", "${rowImgList.size}")
-//    }catch (exception :Exception){
-//        exception.printStackTrace()
-//        Log.d("===please???EEE2", "${rowImgList.size}")
-//    }
-//    return isEnd
-//}
+// jsoup을 사용한 이미지 src 파싱 & 아이템 배열 추가
+suspend fun fetchImgSrc(rowImgList:ArrayList<RowImgSrc?>):Boolean = withContext(Dispatchers.IO) {
+    val WEB_URL = "https://www.gettyimages.com/photos/collaboration?page=%d&phrase=collaboration&sort=mostpopular"
+    var isEnd = false
+
+    try {
+        val doc:Document = Jsoup.connect(
+            String.format(WEB_URL, if (rowImgList.size <= 1) 1 else (rowImgList.size - 1) / 20 + 1)
+        ).get()
+
+        val imgElementList:Elements = doc
+            .select("div[class=search-content__gallery-assets]")
+            .select("img")
+        for (i in 0 until imgElementList.size step 3){
+            rowImgList.add(
+                RowImgSrc(
+                    imgElementList.get(i).attr("src"),
+                    imgElementList.get(i+1).attr("src"),
+                    imgElementList.get(i+2).attr("src")
+                )
+            )
+        }
+    }catch (httpStatusException : HttpStatusException){
+        httpStatusException.printStackTrace()
+        isEnd = true
+    }catch (exception :Exception){
+        exception.printStackTrace()
+    }
+    isEnd
+}
